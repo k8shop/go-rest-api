@@ -1,9 +1,8 @@
 package handlers
 
 import (
-	"database/sql"
-
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
 )
 
 //NewHandler by type
@@ -28,7 +27,7 @@ type NoOpHandler struct {
 }
 
 //Register nothing
-func (n *NoOpHandler) Register(db *sql.DB, router *mux.Router) {
+func (n *NoOpHandler) Register(db *gorm.DB, router *mux.Router) {
 }
 
 //Slug for NoOpHandler

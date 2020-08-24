@@ -2,20 +2,20 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
 	"github.com/k8shop/go-rest-api/pkg/handlers"
 	"github.com/k8shop/go-rest-api/pkg/handlers/middleware"
+	"github.com/k8shop/go-rest-api/pkg/models"
 
 	"database/sql"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
 func main() {
@@ -35,63 +35,40 @@ func main() {
 	http.ListenAndServe(":8080", router)
 }
 
-func initDB() (*sql.DB, error) {
+func initDB() (*gorm.DB, error) {
 	connectionURL := fmt.Sprintf(
-		"%v:%v@tcp(%v)/",
+		"%v:%v@tcp(%v)/?parseTime=true",
 		os.Getenv("DATABASE_USER"),
 		os.Getenv("DATABASE_PASS"),
 		os.Getenv("DATABASE_HOST"),
 	)
 	log.Printf("Connecting to DB: %s", connectionURL)
-	db, err := sql.Open("mysql", connectionURL)
+	preDB, err := sql.Open("mysql", connectionURL)
 	if err != nil {
 		return nil, err
 	}
-	// See "Important settings" section.
-	db.SetConnMaxLifetime(time.Minute * 3)
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
 
-	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS " + os.Getenv("DATABASE_NAME"))
+	_, err = preDB.Exec("CREATE DATABASE IF NOT EXISTS " + os.Getenv("DATABASE_NAME"))
 	if err != nil {
 		return nil, err
 	}
+
+	preDB.Close()
 
 	connectionURL = fmt.Sprintf(
-		"%v:%v@tcp(%v)/%v",
+		"%v:%v@tcp(%v)/%v?parseTime=true",
 		os.Getenv("DATABASE_USER"),
 		os.Getenv("DATABASE_PASS"),
 		os.Getenv("DATABASE_HOST"),
 		os.Getenv("DATABASE_NAME"),
 	)
 	log.Printf("Connecting to DB: %s", connectionURL)
-	db, err = sql.Open("mysql", connectionURL)
+	db, err := gorm.Open("mysql", connectionURL)
 	if err != nil {
 		return nil, err
 	}
 
-	schemaDir, err := os.Open("./schema")
-	if err != nil {
-		return nil, err
-	}
-	files, err := schemaDir.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, fileName := range files {
-		if !strings.Contains(fileName, ".tbl.sql") {
-			continue
-		}
-		buf, err := ioutil.ReadFile("./schema/" + fileName)
-		if err != nil {
-			return nil, err
-		}
-		_, err = db.Exec(string(buf))
-		if err != nil {
-			return nil, err
-		}
-	}
+	db.Debug().AutoMigrate(&models.Product{})
 
 	return db, nil
 }
