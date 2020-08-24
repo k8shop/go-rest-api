@@ -1,12 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/k8shop/go-rest-api/pkg/handlers"
+	"github.com/k8shop/go-rest-api/pkg/handlers/middleware"
 
 	"database/sql"
 
@@ -21,6 +26,7 @@ func main() {
 		panic(err)
 	}
 	router := mux.NewRouter()
+	router.Use(middleware.AddCommonHeaders)
 	err = handlers.Register(router, db)
 	if err != nil {
 		panic(err)
@@ -30,7 +36,12 @@ func main() {
 }
 
 func initDB() (*sql.DB, error) {
-	connectionURL := "root:th00perThecure@tcp(database:3306)/"
+	connectionURL := fmt.Sprintf(
+		"%v:%v@tcp(%v)/",
+		os.Getenv("DATABASE_USER"),
+		os.Getenv("DATABASE_PASS"),
+		os.Getenv("DATABASE_HOST"),
+	)
 	log.Printf("Connecting to DB: %s", connectionURL)
 	db, err := sql.Open("mysql", connectionURL)
 	if err != nil {
@@ -41,19 +52,45 @@ func initDB() (*sql.DB, error) {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 
-	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS bikepacker")
+	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS " + os.Getenv("DATABASE_NAME"))
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec("USE bikepacker")
+	connectionURL = fmt.Sprintf(
+		"%v:%v@tcp(%v)/%v",
+		os.Getenv("DATABASE_USER"),
+		os.Getenv("DATABASE_PASS"),
+		os.Getenv("DATABASE_HOST"),
+		os.Getenv("DATABASE_NAME"),
+	)
+	log.Printf("Connecting to DB: %s", connectionURL)
+	db, err = sql.Open("mysql", connectionURL)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS bikes (id INT NOT NULL AUTO_INCREMENT, name VARCHAR(256) NOT NULL, PRIMARY KEY (id))")
+	schemaDir, err := os.Open("./schema")
 	if err != nil {
 		return nil, err
+	}
+	files, err := schemaDir.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, fileName := range files {
+		if !strings.Contains(fileName, ".tbl.sql") {
+			continue
+		}
+		buf, err := ioutil.ReadFile("./schema/" + fileName)
+		if err != nil {
+			return nil, err
+		}
+		_, err = db.Exec(string(buf))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return db, nil

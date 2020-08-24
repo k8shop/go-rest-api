@@ -9,8 +9,8 @@ import (
 //NewHandler by type
 func NewHandler(handler string) Interface {
 	switch handler {
-	case "sample":
-		return NewSampleHandler()
+	case "products":
+		return NewProductsHandler()
 	default:
 		return &NoOpHandler{}
 	}
@@ -19,8 +19,7 @@ func NewHandler(handler string) Interface {
 //GetAllHandlers available
 func GetAllHandlers() []Interface {
 	return []Interface{
-		NewSampleHandler(),
-		NewBikesHandler(),
+		NewProductsHandler(),
 	}
 }
 
