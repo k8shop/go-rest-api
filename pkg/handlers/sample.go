@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 
 //Sample handler
 type Sample struct {
+	db *sql.DB
 }
 
 //NewSampleHandler creates a new sample handler
@@ -23,7 +25,8 @@ func (s *Sample) Slug() string {
 }
 
 //Register routes for this handler
-func (s *Sample) Register(router *mux.Router) {
+func (s *Sample) Register(db *sql.DB, router *mux.Router) {
+	s.db = db
 	router.HandleFunc("/", s.handlePost).Methods("POST")
 	router.HandleFunc("/", s.handleGet).Methods("GET")
 	router.HandleFunc("", s.handleGet).Methods("GET")

@@ -1,4 +1,4 @@
-FROM golang:1.14.7-alpine3.12
+FROM golang:1.15-alpine3.12
 
 WORKDIR /app/go-rest-api
 
