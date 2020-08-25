@@ -16,6 +16,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -32,7 +33,15 @@ func main() {
 		panic(err)
 	}
 
-	http.ListenAndServe(":8080", router)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE"},
+	})
+
+	handler := c.Handler(router)
+
+	http.ListenAndServe(":8080", handler)
 }
 
 func initDB() (*gorm.DB, error) {
@@ -42,6 +51,7 @@ func initDB() (*gorm.DB, error) {
 		os.Getenv("DATABASE_PASS"),
 		os.Getenv("DATABASE_HOST"),
 	)
+
 	log.Printf("Connecting to DB: %s", connectionURL)
 	preDB, err := sql.Open("mysql", connectionURL)
 	if err != nil {
