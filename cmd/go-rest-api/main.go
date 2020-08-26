@@ -1,16 +1,22 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"time"
+	"os"
 
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
 	"github.com/k8shop/go-rest-api/pkg/handlers"
+	"github.com/k8shop/go-rest-api/pkg/handlers/middleware"
+	"github.com/k8shop/go-rest-api/pkg/models"
 
 	"database/sql"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -21,40 +27,58 @@ func main() {
 		panic(err)
 	}
 	router := mux.NewRouter()
+	router.Use(middleware.AddCommonHeaders)
 	err = handlers.Register(router, db)
 	if err != nil {
 		panic(err)
 	}
 
-	http.ListenAndServe(":8080", router)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE"},
+	})
+
+	handler := c.Handler(router)
+
+	http.ListenAndServe(":8080", handler)
 }
 
-func initDB() (*sql.DB, error) {
-	connectionURL := "root:th00perThecure@tcp(database:3306)/"
+func initDB() (*gorm.DB, error) {
+	connectionURL := fmt.Sprintf(
+		"%v:%v@tcp(%v)/?parseTime=true",
+		os.Getenv("DATABASE_USER"),
+		os.Getenv("DATABASE_PASS"),
+		os.Getenv("DATABASE_HOST"),
+	)
+
 	log.Printf("Connecting to DB: %s", connectionURL)
-	db, err := sql.Open("mysql", connectionURL)
-	if err != nil {
-		return nil, err
-	}
-	// See "Important settings" section.
-	db.SetConnMaxLifetime(time.Minute * 3)
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
-
-	_, err = db.Exec("CREATE DATABASE IF NOT EXISTS bikepacker")
+	preDB, err := sql.Open("mysql", connectionURL)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec("USE bikepacker")
+	_, err = preDB.Exec("CREATE DATABASE IF NOT EXISTS " + os.Getenv("DATABASE_NAME"))
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS bikes (id INT NOT NULL AUTO_INCREMENT, name VARCHAR(256) NOT NULL, PRIMARY KEY (id))")
+	preDB.Close()
+
+	connectionURL = fmt.Sprintf(
+		"%v:%v@tcp(%v)/%v?parseTime=true",
+		os.Getenv("DATABASE_USER"),
+		os.Getenv("DATABASE_PASS"),
+		os.Getenv("DATABASE_HOST"),
+		os.Getenv("DATABASE_NAME"),
+	)
+	log.Printf("Connecting to DB: %s", connectionURL)
+	db, err := gorm.Open("mysql", connectionURL)
 	if err != nil {
 		return nil, err
 	}
+
+	db.Debug().AutoMigrate(&models.Product{})
 
 	return db, nil
 }

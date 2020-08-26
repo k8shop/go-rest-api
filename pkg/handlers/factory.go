@@ -1,16 +1,15 @@
 package handlers
 
 import (
-	"database/sql"
-
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
 )
 
 //NewHandler by type
 func NewHandler(handler string) Interface {
 	switch handler {
-	case "sample":
-		return NewSampleHandler()
+	case "products":
+		return NewProductsHandler()
 	default:
 		return &NoOpHandler{}
 	}
@@ -19,8 +18,7 @@ func NewHandler(handler string) Interface {
 //GetAllHandlers available
 func GetAllHandlers() []Interface {
 	return []Interface{
-		NewSampleHandler(),
-		NewBikesHandler(),
+		NewProductsHandler(),
 	}
 }
 
@@ -29,7 +27,7 @@ type NoOpHandler struct {
 }
 
 //Register nothing
-func (n *NoOpHandler) Register(db *sql.DB, router *mux.Router) {
+func (n *NoOpHandler) Register(db *gorm.DB, router *mux.Router) {
 }
 
 //Slug for NoOpHandler

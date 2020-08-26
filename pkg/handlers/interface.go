@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"database/sql"
-
 	"github.com/gorilla/mux"
+	"github.com/jinzhu/gorm"
 )
 
 //Interface for all handlers
 type Interface interface {
-	Register(db *sql.DB, router *mux.Router)
+	Register(db *gorm.DB, router *mux.Router)
 	Slug() string
 }
