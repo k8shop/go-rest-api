@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 	"github.com/k8shop/go-rest-api/pkg/handlers"
 	"github.com/k8shop/go-rest-api/pkg/handlers/middleware"
+	"github.com/k8shop/go-rest-api/pkg/informer"
 	"github.com/k8shop/go-rest-api/pkg/models"
 
 	"database/sql"
@@ -22,21 +24,23 @@ import (
 func main() {
 	db, err := initDB()
 	defer db.Close()
+	informer := informer.NewInformer([]string{os.Getenv("KAFKA_HOST") + ":" + os.Getenv("KAFKA_PORT")})
+	defer informer.Close()
 
 	if err != nil {
 		panic(err)
 	}
 	router := mux.NewRouter()
 	router.Use(middleware.AddCommonHeaders)
-	err = handlers.Register(router, db)
+	err = handlers.Register(router, db, informer)
 	if err != nil {
 		panic(err)
 	}
 
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedOrigins:   strings.Split(os.Getenv("CORS_ORIGINS"), ";"),
 		AllowCredentials: true,
-		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE"},
+		AllowedMethods:   strings.Split(os.Getenv("CORS_METHODS"), ";"),
 	})
 
 	handler := c.Handler(router)
@@ -78,7 +82,7 @@ func initDB() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	db.Debug().AutoMigrate(&models.Product{})
+	db.Debug().AutoMigrate(&models.Product{}, &models.User{}, &models.VerificationCode{})
 
 	return db, nil
 }
