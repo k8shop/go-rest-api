@@ -5,15 +5,18 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
+	"github.com/k8shop/go-rest-api/pkg/informer"
 	"github.com/k8shop/go-rest-api/pkg/models"
 )
 
 //Products handler
 type Products struct {
-	db *gorm.DB
+	db       *gorm.DB
+	informer *informer.Informer
 }
 
 //NewProductsHandler handles products handles
@@ -27,16 +30,19 @@ func (p *Products) Slug() string {
 }
 
 //Register is register
-func (p *Products) Register(db *gorm.DB, router *mux.Router) {
+func (p *Products) Register(db *gorm.DB, informer *informer.Informer, router *mux.Router) {
 	p.db = db
-	router.HandleFunc("/", p.handleGet).Methods("GET")
+	p.informer = informer
+	router.HandleFunc("", p.handleGetProducts).Methods("GET")
+	router.HandleFunc("/", p.handleGetProducts).Methods("GET")
 	router.HandleFunc("/{id:[0-9]+}", p.handleGetProduct).Methods("GET")
 	router.HandleFunc("/{id:[0-9]+}", p.handlePutProduct).Methods("PUT")
+	router.HandleFunc("", p.handlePost).Methods("POST")
 	router.HandleFunc("/", p.handlePost).Methods("POST")
 	router.HandleFunc("/{id:[0-9]+}", p.handleDelete).Methods("DELETE")
 }
 
-func (p *Products) handleGet(res http.ResponseWriter, req *http.Request) {
+func (p *Products) handleGetProducts(res http.ResponseWriter, req *http.Request) {
 	products := []*models.Product{}
 	errs := p.db.Debug().Find(&products).GetErrors()
 	for _, err := range errs {
@@ -45,7 +51,7 @@ func (p *Products) handleGet(res http.ResponseWriter, req *http.Request) {
 
 	resBytes, err := json.Marshal(products)
 	if err != nil {
-		res.Write([]byte(err.Error()))
+		res.Write([]byte("{\"error\": \"" + err.Error() + "\"}"))
 		return
 	}
 	res.Write(resBytes)
@@ -66,7 +72,7 @@ func (p *Products) handleGetProduct(res http.ResponseWriter, req *http.Request) 
 
 	resBytes, err := json.Marshal(product)
 	if err != nil {
-		res.Write([]byte(err.Error()))
+		res.Write([]byte("{\"error\": \"" + err.Error() + "\"}"))
 		return
 	}
 	res.Write(resBytes)
@@ -79,8 +85,12 @@ func (p *Products) handlePost(res http.ResponseWriter, req *http.Request) {
 	}
 	product := models.Product{Name: req.FormValue("name"), Price: price}
 
-	p.db.Debug().Create(&product)
-
+	p.db.Create(&product)
+	log.Printf("informing product update %+v", product)
+	err = p.informer.InformProducts(&product)
+	if err != nil {
+		panic(err)
+	}
 	resBytes, err := json.Marshal(product)
 	if err != nil {
 		res.Write([]byte(err.Error()))
@@ -106,6 +116,7 @@ func (p *Products) handlePutProduct(res http.ResponseWriter, req *http.Request) 
 	product.Price = price
 
 	p.db.Debug().Save(&product)
+	p.informer.InformProducts(&product)
 
 	resBytes, err := json.Marshal(product)
 	if err != nil {
@@ -121,10 +132,12 @@ func (p *Products) handleDelete(res http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	product := &models.Product{}
-	p.db.First(product, id)
-	p.db.Delete(&product)
-
+	product := models.Product{}
+	p.db.First(&product, id)
+	p.db.Delete(product)
+	t := time.Now()
+	product.DeletedAt = &t
+	p.informer.InformProducts(&product)
 	resBytes, err := json.Marshal(product)
 	if err != nil {
 		res.Write([]byte(err.Error()))
